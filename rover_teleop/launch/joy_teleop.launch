@@ -1,1 +1,7 @@
-
+<launch>
+  <node pkg="joy" type="joy_node" name="joy_node" output="screen" />
+  <node pkg="rover_teleop" type="joy_ackermann_teleop.py" name="joy_ackermann_teleop" output="screen">
+    <param name="max_speed" value="1.0" />
+    <param name="max_steering" value="0.6" />
+  </node>
+</launch>
