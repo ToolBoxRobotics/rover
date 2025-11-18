@@ -1,1 +1,28 @@
+<launch>
+  <arg name="world" default="$(find rover_simulation)/worlds/empty.world"/>
 
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(arg world)"/>
+    <arg name="paused" value="false"/>
+    <arg name="use_sim_time" value="true"/>
+  </include>
+
+  <param name="robot_description" command="$(find xacro)/xacro '$(find rover_description)/urdf/rover.urdf.xacro'"/>
+
+  <node pkg="gazebo_ros" type="spawn_model" name="spawn_rover" args="-urdf -model rover -param robot_description" />
+
+  <rosparam file="$(find rover_control)/config/controllers.yaml" command="load" />
+
+  <node name="controller_spawner" pkg="controller_manager" type="spawner"
+        args="joint_state_controller
+              fl_wheel_joint
+              ml_wheel_joint
+              rl_wheel_joint
+              fr_wheel_joint
+              mr_wheel_joint
+              rr_wheel_joint
+              fl_steer_joint
+              fr_steer_joint
+              rl_steer_joint
+              rr_steer_joint" />
+</launch>
