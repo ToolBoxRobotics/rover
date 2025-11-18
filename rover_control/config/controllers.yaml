@@ -1,1 +1,47 @@
+joint_state_controller:
+  type: joint_state_controller/JointStateController
+  publish_rate: 50
 
+wheel_controllers:
+  fl_wheel_joint:
+    type: velocity_controllers/JointVelocityController
+    joint: fl_wheel_joint
+    pid: {p: 10.0, i: 0.0, d: 0.0}
+  ml_wheel_joint:
+    type: velocity_controllers/JointVelocityController
+    joint: ml_wheel_joint
+    pid: {p: 10.0, i: 0.0, d: 0.0}
+  rl_wheel_joint:
+    type: velocity_controllers/JointVelocityController
+    joint: rl_wheel_joint
+    pid: {p: 10.0, i: 0.0, d: 0.0}
+  fr_wheel_joint:
+    type: velocity_controllers/JointVelocityController
+    joint: fr_wheel_joint
+    pid: {p: 10.0, i: 0.0, d: 0.0}
+  mr_wheel_joint:
+    type: velocity_controllers/JointVelocityController
+    joint: mr_wheel_joint
+    pid: {p: 10.0, i: 0.0, d: 0.0}
+  rr_wheel_joint:
+    type: velocity_controllers/JointVelocityController
+    joint: rr_wheel_joint
+    pid: {p: 10.0, i: 0.0, d: 0.0}
+
+steering_controllers:
+  fl_steer_joint:
+    type: position_controllers/JointPositionController
+    joint: fl_steer_joint
+    pid: {p: 5.0, i: 0.0, d: 0.0}
+  fr_steer_joint:
+    type: position_controllers/JointPositionController
+    joint: fr_steer_joint
+    pid: {p: 5.0, i: 0.0, d: 0.0}
+  rl_steer_joint:
+    type: position_controllers/JointPositionController
+    joint: rl_steer_joint
+    pid: {p: 5.0, i: 0.0, d: 0.0}
+  rr_steer_joint:
+    type: position_controllers/JointPositionController
+    joint: rr_steer_joint
+    pid: {p: 5.0, i: 0.0, d: 0.0}
