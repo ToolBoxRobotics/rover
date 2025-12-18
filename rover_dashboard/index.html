@@ -1,1 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Rover Dashboard</title>
+  <meta charset="utf-8">
+  <script src="roslib.min.js"></script>
+  <script src="joystick.js"></script>
 
+  <!-- Bootstrap for layout -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+
+  <style>
+    body { background: #1a1a1a; color: #eee; }
+    .panel { background: #222; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+    .title { font-size: 1.4em; margin-bottom: 10px; }
+    canvas { background: #000; }
+  </style>
+</head>
+
+<body class="container-fluid">
+
+  <h1 class="text-center mt-3 mb-4">? Rover Control Dashboard</h1>
+
+  <div class="row">
+
+    <!-- ==================== LEFT COLUMN ==================== -->
+    <div class="col-md-4">
+
+      <!-- Connection Status -->
+      <div class="panel">
+        <div class="title">? Connection</div>
+        <div id="conn-status">Connecting...</div>
+      </div>
+
+      <!-- Health Dashboard -->
+      <div class="panel">
+        <div class="title">? Health & Diagnostics</div>
+        <div id="battery">Battery: -- V / -- A</div>
+        <div id="imu">IMU: --</div>
+        <div id="gps">GPS: --</div>
+        <div id="temp">CPU Temp: -- ?C</div>
+        <div id="cmd_age">cmd_vel Age: -- s</div>
+      </div>
+
+      <!-- Teleop -->
+      <div class="panel">
+        <div class="title">? Teleoperation</div>
+        <div id="joy-container" style="width:200px;height:200px;margin:auto;"></div>
+        <button class="btn btn-danger w-100 mt-3" onclick="estop()">EMERGENCY STOP</button>
+      </div>
+
+    </div>
+
+    <!-- ==================== CENTER COLUMN ==================== -->
+    <div class="col-md-4">
+
+      <!-- Camera -->
+      <div class="panel text-center">
+        <div class="title">? Camera (RGB)</div>
+        <img id="cam" 
+             src="http://ROVER_IP:8080/stream?topic=/camera/rgb/image_raw"
+             width="100%" />
+      </div>
+
+      <!-- Map View (from Nav Stack) -->
+      <div class="panel">
+        <div class="title">?? Map</div>
+        <img id="map" width="100%"
+             src="http://ROVER_IP:8080/stream?topic=/map" />
+      </div>
+
+    </div>
+
+    <!-- ==================== RIGHT COLUMN ==================== -->
+    <div class="col-md-4">
+
+      <!-- Waypoint Navigation -->
+      <div class="panel">
+        <div class="title">? Send Waypoint</div>
+        <input id="wp_x" class="form-control mb-2" placeholder="X (meters)">
+        <input id="wp_y" class="form-control mb-2" placeholder="Y (meters)">
+        <button class="btn btn-primary w-100" onclick="sendWaypoint()">Send Goal</button>
+      </div>
+
+      <!-- Arm Control -->
+      <div class="panel">
+        <div class="title">? Arm Target Pose</div>
+        <input id="arm_x" class="form-control mb-1" placeholder="X">
+        <input id="arm_y" class="form-control mb-1" placeholder="Y">
+        <input id="arm_z" class="form-control mb-1" placeholder="Z">
+        <button class="btn btn-success w-100 mt-2" onclick="sendArmGoal()">Move Arm</button>
+      </div>
+
+      <!-- Info -->
+      <div class="panel">
+        <div class="title">?? Info</div>
+        <p>Use joystick or waypoints to drive.<br>
+           Use arm pose to command the manipulator.<br>
+           Diagnostics updates from /diagnostics topic.</p>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ==================== JAVASCRIPT ==================== -->
+  <script>
+    // Replace with your rover's IP
+    const ROSBRIDGE = "ws://ROVER_IP:9090";
+
+    // Connect to ROS
+    let ros = new ROSLIB.Ros({ url: ROSBRIDGE });
+
+    ros.on('connection', () => {
+      document.getElementById("conn-status").innerHTML =
+          "<span style='color:lime'>Connected</span>";
+    });
+
+    ros.on('error', () => {
+      document.getElementById("conn-status").innerHTML =
+          "<span style='color:red'>Connection Error</span>";
+    });
+
+    ros.on('close', () => {
+      document.getElementById("conn-status").innerHTML =
+          "<span style='color:orange'>Closed</span>";
+    });
+
+    // Subscribers ======================
+    new ROSLIB.Topic({
+      ros, name: '/power', messageType: 'std_msgs/Float32MultiArray'
+    }).subscribe(msg => {
+      document.getElementById("battery").innerText =
+         `Battery: ${msg.data[0].toFixed(2)} V  / ${msg.data[1].toFixed(2)} A`;
+    });
+
+    new ROSLIB.Topic({
+      ros, name: '/imu/data', messageType: 'sensor_msgs/Imu'
+    }).subscribe(() => {
+      document.getElementById("imu").innerText = "IMU: OK";
+    });
+
+    new ROSLIB.Topic({
+      ros, name: '/fix', messageType: 'sensor_msgs/NavSatFix'
+    }).subscribe(msg => {
+      document.getElementById("gps").innerText =
+         `GPS: (${msg.latitude.toFixed(5)}, ${msg.longitude.toFixed(5)})`;
+    });
+
+    // Diagnostics (optional enhancement)
+    new ROSLIB.Topic({
+      ros, name: '/diagnostics', messageType: 'diagnostic_msgs/DiagnosticArray'
+    }).subscribe(msg => {
+      msg.status.forEach(s => {
+        if (s.name === "CPU Temperature")
+          document.getElementById("temp").innerText = `CPU Temp: ${s.values[0].value} ?C`;
+      });
+    });
+
+    // Teleop publishers
+    let cmdVel = new ROSLIB.Topic({
+      ros, name: '/cmd_vel', messageType: 'geometry_msgs/Twist'
+    });
+
+    function estop() {
+      cmdVel.publish(new ROSLIB.Message({ linear:{x:0}, angular:{z:0} }));
+      alert("Emergency stop sent!");
+    }
+
+    // Joystick teleop
+    let joy = new Joystick("joy-container", 200, (x, y) => {
+      const scale = 1.0;
+      let msg = new ROSLIB.Message({
+        linear:  { x: y * scale },
+        angular: { z: -x * scale }
+      });
+      cmdVel.publish(msg);
+    });
+
+    // Waypoint navigation
+    function sendWaypoint() {
+      let x = parseFloat(document.getElementById("wp_x").value);
+      let y = parseFloat(document.getElementById("wp_y").value);
+
+      let goal = new ROSLIB.Topic({
+        ros, name: '/move_base_simple/goal',
+        messageType: 'geometry_msgs/PoseStamped'
+      });
+
+      goal.publish({
+        header: { frame_id: "map" },
+        pose: {
+          position: { x:x, y:y, z:0 },
+          orientation: { z:0, w:1 }
+        }
+      });
+    }
+
+    // Arm IK
+    function sendArmGoal() {
+      let x = parseFloat(document.getElementById("arm_x").value);
+      let y = parseFloat(document.getElementById("arm_y").value);
+      let z = parseFloat(document.getElementById("arm_z").value);
+
+      let pub = new ROSLIB.Topic({
+        ros, name: '/arm/target_pose', messageType: 'geometry_msgs/PoseStamped'
+      });
+
+      pub.publish({
+        header: { frame_id: "arm_base_link" },
+        pose: {
+          position: { x:x, y:y, z:z },
+          orientation: { x:0, y:0, z:0, w:1 }
+        }
+      });
+    }
+  </script>
+
+</body>
+</html>
