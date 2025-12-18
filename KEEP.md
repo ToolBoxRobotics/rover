@@ -109,13 +109,90 @@ Python dependencies for custom nodes (example):
 
 
 
+#### 4. URDF (rover.urdf.xacro)
+
+    — summary
+    The URDF uses xacro macros. Key links:
+    
+    base_link -> chassis_link
+    
+    imu_link mounted to chassis
+    
+    wheel_* joints (6 wheels): wheel_fl, wheel_ml, wheel_rl, wheel_fr, wheel_mr, wheel_rr
+    
+    steer_fl_joint, steer_fr_joint, steer_rl_joint, steer_rr_joint (4 steering joints)
+    
+    caster middle wheels fixed rotation joints
+    
+    camera_link (kinect) attached near front
+    
+    arm_base_link, arm_joint_1..arm_joint_5
+    
+    Include transmission tags for ros_control (effort or velocity controllers) for wheels and position controllers for steering servos and arm joints.
+    
+    (Full xacro is included in the canvas document.)
 
 
+
+#### 5. Arduino sketch (arduino_sketch.ino)
+    Features implemented in sketch:
+    
+    I2C to PCA9685 to control motor PWM & steering servos
+    
+    Encoder reading via interrupts (attachInterrupt)
+    
+    MPU6050 read and DMP or raw accel/gyro fused into orientation (complementary filter)
+    
+    GPS read from serial port and NMEA parsing (GGA/VTG)
+    
+    Stepper control for arm (step/dir pins) and reading limit switches
+    
+    rosserial publisher topics: /imu/data_raw, /gps/fix, /encoder_counts, /odometry_raw, /arm/joint_states
+    
+    rosserial subscribers: /cmd_wheels (custom message: array of wheel velocities), /cmd_steer (angles), /arm/cmd (joint moves)
+    
+    The sketch includes safe-guards, watchdog, and a parameter for PCA9685 I2C address.
+    
+    (Full Arduino sketch included in canvas document.)
+
+
+
+
+#### 6. Key ROS nodes (scripts)
+
+    ackermann_to_wheels.py
+    Subscribes to /ackermann_cmd (type ackermann_msgs/AckermannDriveStamped) or /cmd_vel.
+    
+    Converts steering angle to servo PWM (via PCA9685) and longitudinal velocity to wheel angular velocities.
+    
+    Publishes wheel commands to /cmd_wheel_velocities (custom Float64MultiArray) or forwards to rosserial topics consumed by Arduino.
+    
+    odometry_node.py
+    Reads encoder counts (from /encoder_counts) and IMU yaw to compute odometry.
+    
+    Publishes nav_msgs/Odometry on /odom and broadcasts TF odom -> base_link.
+    
+    Optionally runs a velocity PID per wheel (or central velocity PID) and publishes control effort to /wheel_effort_cmds.
+    
+    pid_velocity_controller.py
+    A controller node implementing simple PID for wheel velocities; tuned using params/controllers.yaml.
+    
+    arm_controller.py
+    High-level node to convert joint-angle goals to stepper step counts and send step/dir sequences via rosserial topics.
+    
+    Performs homing using limit switches on startup.
+    
+    (Full python node code included in canvas.)
 
 
 
 
 #### 8.2 ROS control config - rover_control/config/controllers.yaml
+
+    wheel velocity PIDs
+    steering position controllers
+    arm stepper microstepping & speed limits
+
 
         joint_state_controller:
         type: joint_state_controller/JointStateController
@@ -260,6 +337,76 @@ Python dependencies for custom nodes (example):
       Visualization:
       URDF + joint states (from hardware or Gazebo) → robot_state_publisher → TF tree
       RViz displays odom frame, TF tree, RobotModel.
+
+
+
+
+8 — Launch files
+
+simulation.launch — starts Gazebo with rover model, spawns robot state publisher, joint_state_publisher, controllers, openni2_launch (Kinect), and RViz.
+bringup.launch — connects to physical Arduino via rosserial_python and starts IMU, GPS, odom nodes and controller managers.
+teleop.launch — starts joy_node and maps to ackermann teleop node.
+ackermann_bridge.launch — bridge from /ackermann_cmd to wheel+steer topics.
+
+
+
+9 — Gazebo simulation notes
+
+Use gazebo_ros_control plugin and ros_control transmissions to let controller_manager handle wheel velocity controllers and position controllers for steering and arm joints.
+Use libgazebo_ros_openni_kinect.so plugin (or OpenNI2 equivalent) to simulate Kinect depth and color topics /camera/rgb/image_raw, /camera/depth_registered/image_raw, and /camera/depth/points.
+Provide a plugin to simulate encoder ticks (joint state publisher with high-res values) or use the joint_state_controller.
+
+
+10 — RViz & TF
+
+RViz config shows:
+    map -> odom -> base_link -> chassis_link -> camera_link -> arm_base_link -> arm_joint_*
+    Wheel links and steering links displayed as joint states
+    IMU and GPS markers (visualization_msgs/Marker)
+    PointCloud2 from Kinect
+
+
+11 — Wiring & pin mapping (summary)
+
+Arduino (Uno/Mega suggestion: Mega recommended for many interrupts and serials)
+PCA9685 SDA/SCL -> Arduino SDA/SCL (I2C)
+PCA9685 V+ -> 12V (for servos), Vcc -> 5V (logic) — isolate power grounds
+DRI0002 motor driver PWM inputs connected to PCA9685 channels (external motor power supply to DRI0002)
+Encoder A/B -> Arduino digital interrupt pins (use hardware interrupts; Megas have many)
+MPU6050 -> I2C
+GPS TX -> Arduino RX1 (use Serial1 on Mega)
+Stepper A4988 STEP & DIR -> Arduino digital pins (one pair per motor or use stepper driver board multiplex)
+Limit switches -> digital input with pullups
+Powering: use separate battery for motors (12V) and logic (5V regulated). Ensure common ground.
+
+
+
+12 — Testing & calibration checklist
+
+Flash Arduino sketch and verify rosserial connection: rosrun rosserial_python serial_node.py /dev/ttyACM0.
+Verify IMU publishes to /imu/data_raw.
+Verify encoders publish counts when wheels turned manually.
+Test PCA9685: move a single servo and single motor PWM at low values.
+Run ackermann_to_wheels.py in simulation while in Gazebo and verify steering conversion.
+Tune wheel velocity PID: start low P, then increase I/D carefully.
+Calibrate odometry wheel radius and encoder ticks per revolution in params/odometry.yaml.
+Arm homing: test limit switches and stepper movements slowly.
+
+
+
+13 — Next steps & optional enhancements
+
+Add RTK-capable GPS / RTK library for centimeter-level positioning.
+Integrate MoveIt for arm path planning and grasping.
+Add sensor fusion with robot_localization for IMU+GPS+odometry.
+Add autonomous behaviors using move_base, teb_local_planner or nav2 porting.
+
+
+
+
+
+
+
 
 
 
