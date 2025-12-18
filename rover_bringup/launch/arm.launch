@@ -1,0 +1,13 @@
+<launch>
+  <arg name="port_arm" default="/dev/ttyACM1"/>
+  <arg name="baud" default="57600"/>
+
+  <rosparam file="$(find arm_control)/config/arm_params.yaml" command="load"/>
+
+  <node pkg="rosserial_python" type="serial_node.py" name="rosserial_arm">
+    <param name="port" value="$(arg port_arm)"/>
+    <param name="baud" value="$(arg baud)"/>
+  </node>
+
+  <node pkg="arm_control" type="arm_bridge_node.py" name="arm_bridge_node" output="screen"/>
+</launch>
