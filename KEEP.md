@@ -4,7 +4,34 @@
 
 
 
+1. System architecture Hardware
 
+PC (ROS master)
+
+    Runs: roscore, RViz, Gazebo, MoveIt, navigation stack, teleop, OpenCV processing, logging.
+
+Raspberry Pi CM4 on rover
+
+    Runs: sensor/actuator interface nodes, robot_state_publisher, base control, nav stack “local” bits if desired.
+
+
+Arduino Mega #1 (“drive_mega”)
+    6× DRI0002 motor controllers via PCA9685 (PWM) + GPIO DIR pins.
+    6× quadrature encoders (A/B).
+    4× steering servos via PCA9685.
+    TCA9548A I²C mux with:
+    MPU6050 IMU
+    AHT20 temp/humidity
+    INA219 voltage/current
+    Talks with CM4 via rosserial over USB.
+
+Arduino Mega #2 (“arm_mega”)
+    5× NEMA17 + A4988 (STEP/DIR/EN).
+    Limit switches for each joint.
+    rosserial over USB.
+    Kinect RGB-D camera via USB on CM4/PC.
+    YB-MVV21-V1 GPS via USB (NMEA serial) on CM4/PC.
+    Joystick via USB on PC.
 
 
 
@@ -73,8 +100,26 @@ Python dependencies for custom nodes (example):
 
 #### 2. Catkin workspace & package layout
 
-    mkdir -p ~/rover_ws/src
+    mkdir -p ~/catkin_ws/src
+    cd ~/catkin_ws/src
+    catkin_init_workspace
+    Suggested packages:
+    
+    catkin_ws/src
+    ├── rover_bringup          # Launch files, master/slave setup, rosserial
+    ├── rover_description      # URDF/Xacro, meshes
+    ├── rover_control          # ros_control, Ackermann, PID, odom
+    ├── rover_arduino_drive    # messages + config for drive_mega
+    ├── rover_arduino_arm      # messages + config for arm_mega
+    ├── rover_navigation       # robot_localization, move_base configs
+    ├── rover_teleop           # joystick + teleop/ackermann nodes
+    ├── rover_vision           # Kinect, OpenCV, nav perception
+    ├── rover_gazebo           # Gazebo world, plugins, sim launch
+    └── rover_arm_moveit       # MoveIt config for 5-DOF arm
 
+
+
+    mkdir -p ~/rover_ws/src
     cd ~/rover_ws/src
 
     catkin_create_pkg rover_bringup rospy std_msgs sensor_msgs geometry_msgs nav_msgs tf tf2_ros ackermann_msgs joy
@@ -131,10 +176,39 @@ Python dependencies for custom nodes (example):
     Include transmission tags for ros_control (effort or velocity controllers) for wheels and position controllers for steering servos and arm joints.
     
     (Full xacro is included in the canvas document.)
+    
+    map
+    
+    odom
+    
+    base_link
+    
+    imu_link
+    
+    gps_link
+    
+    camera_link → camera_rgb_optical_frame, camera_depth_optical_frame
+    
+    Wheel links: front_left_wheel_link, mid_left_wheel_link, rear_left_wheel_link, etc.
+    
+    Steering joints: front_left_steer_link, etc.
+    
+    Arm base: arm_base_link → arm_shoulder_link → arm_elbow_link → arm_wrist_pitch_link → arm_wrist_roll_link → arm_gripper_link
+
+
 
 
 
 #### 5. Arduino sketch (arduino_sketch.ino)
+    
+    PCA9685 at 0x40.
+
+    TCA9548A at 0x70, with:
+        Channel 0: MPU6050
+        Channel 1: AHT20
+        Channel 2: INA219
+    
+    
     Features implemented in sketch:
     
     I2C to PCA9685 to control motor PWM & steering servos
