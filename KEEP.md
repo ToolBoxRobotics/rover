@@ -2,6 +2,70 @@
 
 
 
+### 1. Prerequisites
+#### 1.1 OS Requirements
+Ubuntu 20.04 (PC / Master machine)
+
+SBC (Raspberry Pi 4):
+
+Ubuntu 20.04 Server
+
+ROS Noetic installed on Ubuntu 20.04 Server
+
+1.2 Core Dependencies Installed on Both Machines
+sudo apt update
+sudo apt install -y git python3-rosdep python3-rosinstall \
+                   python3-wstool build-essential ros-noetic-desktop-full
+Initialize rosdep:
+
+sudo rosdep init
+rosdep update
+
+✅ 2. Workspace Setup
+On both the PC and Pi:
+
+mkdir -p ~/catkin_ws/src
+cd ~/catkin_ws
+catkin_make
+echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+
+
+✅ 3. Clone All Packages
+On the PC:
+
+cd ~/catkin_ws/src
+git clone <your_repo_containing> rover_description
+git clone <your_repo_containing> rover_hardware
+git clone <your_repo_containing> rover_arm_traj
+git clone <your_repo_containing> toolbox_rover_moveit
+If you don’t have repos yet, copy the generated folders into ~/catkin_ws/src.
+
+On the Raspberry Pi:
+Only clone the hardware-related packages:
+
+cd ~/catkin_ws/src
+git clone <your_repo_containing> rover_hardware
+git clone <your_repo_containing> rover_arm_traj
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 1. System architecture Hardware
@@ -788,6 +852,53 @@ rover_msgs/package.xml: add message_generation, message_runtime.
 
 
 
+rover_base/CMakeLists.txt additions:
+
+find_package(catkin REQUIRED COMPONENTS roscpp geometry_msgs rover_msgs)
+
+include_directories(${catkin_INCLUDE_DIRS})
+
+add_executable(rover_controller src/rover_controller.cpp)
+add_dependencies(rover_controller ${catkin_EXPORTED_TARGETS})
+target_link_libraries(rover_controller ${catkin_LIBRARIES})
 
 
+5) rover_bringup launch on Pi
+rover_bringup/launch/pi_bringup.launch:
+
+<launch>
+  <rosparam file="$(find rover_base)/config/base.yaml" command="load"/>
+
+  <!-- rosserial to Drive Mega -->
+  <node pkg="rosserial_python" type="serial_node.py" name="drive_mega"
+        output="screen">
+    <param name="port" value="/dev/ttyACM0"/>
+    <param name="baud" value="57600"/>
+  </node>
+
+  <!-- rosserial to Arm Mega -->
+  <node pkg="rosserial_python" type="serial_node.py" name="arm_mega"
+        output="screen">
+    <param name="port" value="/dev/ttyACM1"/>
+    <param name="baud" value="57600"/>
+  </node>
+
+  <node pkg="rover_base" type="rover_controller" name="rover_controller" output="screen"/>
+  <node pkg="rover_base" type="odom_node.py" name="rover_odom" output="screen"/>
+</launch>
+
+6) PC bringup (teleop, rviz, nav, MoveIt)
+rover_bringup/launch/pc_master.launch:
+
+<launch>
+  <env name="ROS_MASTER_URI" value="http://<PC_IP>:11311"/>
+  <env name="ROS_IP" value="<PC_IP>"/>
+
+  <node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py"
+        name="teleop" output="screen"/>
+
+  <node pkg="rviz" type="rviz" name="rviz" output="screen" />
+
+  <!-- add SLAM/nav stacks later -->
+</launch>
 
