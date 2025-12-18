@@ -1,0 +1,15 @@
+<launch>
+  <arg name="port_base" default="/dev/ttyACM0"/>
+  <arg name="baud" default="57600"/>
+
+  <rosparam file="$(find rover_control)/config/base_params.yaml" command="load"/>
+
+  <!-- rosserial for Mega #1 -->
+  <node pkg="rosserial_python" type="serial_node.py" name="rosserial_base">
+    <param name="port" value="$(arg port_base)"/>
+    <param name="baud" value="$(arg baud)"/>
+  </node>
+
+  <node pkg="rover_control" type="rover_base_node.py" name="rover_base_node" output="screen"/>
+  <node pkg="rover_control" type="odometry.py" name="odometry_node" output="screen"/>
+</launch>
