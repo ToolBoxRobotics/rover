@@ -1,0 +1,11 @@
+<launch>
+  <!-- Rosbridge websocket server -->
+  <node pkg="rosbridge_server" type="rosbridge_websocket" name="rosbridge" output="screen">
+    <param name="port" value="9090"/>
+  </node>
+
+  <!-- Video server for camera feeds -->
+  <node pkg="web_video_server" type="web_video_server" name="web_video" output="screen">
+    <param name="port" value="8080" />
+  </node>
+</launch>
