@@ -689,6 +689,102 @@ rover_bringup/launch/master_pc.launch:
 
 
 
+9) Bringup / Launch files
+
+rover_bringup/launch/rover_on_pi.launch
+
+Runs on CM4:
+
+<launch>
+  <param name="/use_sim_time" value="false"/>
+
+  <!-- rosserial to Arduino1 and Arduino2 -->
+  <node pkg="rosserial_python" type="serial_node.py" name="serial_drive"
+        args="/dev/ttyACM0" output="screen">
+    <param name="baud" value="57600"/>
+  </node>
+
+  <node pkg="rosserial_python" type="serial_node.py" name="serial_arm"
+        args="/dev/ttyACM1" output="screen">
+    <param name="baud" value="57600"/>
+  </node>
+
+  <node pkg="rover_bridge" type="rover_bridge_node.py" name="rover_bridge" output="screen">
+    <param name="wheel_radius" value="0.10"/>
+    <param name="track" value="0.55"/>
+  </node>
+</launch>
+rover_bringup/launch/rover_on_pc.launch
+Runs on PC:
+
+<launch>
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="rsp"/>
+
+  <node pkg="rover_control" type="rover_control_node" name="rover_control" output="screen">
+    <param name="wheel_radius" value="0.10"/>
+    <param name="track" value="0.55"/>
+    <param name="wheelbase" value="0.80"/>
+    <param name="max_steer" value="0.6"/>
+  </node>
+
+  <!-- Teleop -->
+  <node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py"
+        name="teleop" output="screen" />
+
+</launch>
+
+10) How to run
+On PC
+
+source ~/rover_ws/devel/setup.bash
+export ROS_MASTER_URI=http://<PC_IP>:11311
+export ROS_IP=<PC_IP>
+roslaunch rover_bringup rover_on_pc.launch
+On CM4
+
+source ~/rover_ws/devel/setup.bash
+export ROS_MASTER_URI=http://<PC_IP>:11311
+export ROS_IP=<PI_IP>
+roslaunch rover_bringup rover_on_pi.launch
+You should now be able to:
+
+teleop from PC
+
+see /wheel_cmd, /steer_cmd
+
+see encoder-based /odom on PC
+
+visualize TF in RViz
+
+
+
+2) rover_msgs (custom messages)
+rover_msgs/msg/WheelCmd.msg
+float32[] wheel_rpm   # length 6
+rover_msgs/msg/SteerCmd.msg
+float32[] steer_deg   # length 4 (FL, FR, RL, RR)
+rover_msgs/msg/ArmCmd.msg
+float32[] joint_deg   # length 5
+float32   speed_scale # 0..1
+Edit rover_msgs/CMakeLists.txt:
+
+find_package(catkin REQUIRED COMPONENTS message_generation std_msgs)
+
+add_message_files(
+  FILES
+  WheelCmd.msg
+  SteerCmd.msg
+  ArmCmd.msg
+)
+
+generate_messages(
+  DEPENDENCIES std_msgs
+)
+
+catkin_package(
+  CATKIN_DEPENDS message_runtime std_msgs
+)
+rover_msgs/package.xml: add message_generation, message_runtime.
 
 
 
