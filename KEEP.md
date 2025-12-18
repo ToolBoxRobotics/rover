@@ -31,7 +31,7 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 source ~/.bashrc
 
 
-✅ 3. Clone All Packages
+#### 3. Clone All Packages
 On the PC:
 
 cd ~/catkin_ws/src
@@ -49,12 +49,182 @@ git clone <your_repo_containing> rover_hardware
 git clone <your_repo_containing> rover_arm_traj
 
 
+#### 4. Install Required ROS Packages (PC + SBC)
+sudo apt install -y ros-noetic-ros-control ros-noetic-ros-controllers
+sudo apt install -y ros-noetic-joint-state-publisher
+sudo apt install -y ros-noetic-joint-state-publisher-gui
+sudo apt install -y ros-noetic-gazebo-ros
+sudo apt install -y ros-noetic-moveit
+sudo apt install -y ros-noetic-trac-ik  # optional
+
+
+#### 5. Rover URDF (rover_description)
+You already have:
+
+rover_description/
+ ├── urdf/rover.urdf.xacro
+ ├── config/geometry.yaml
+ ├── config/controllers_unified.yaml
+ └── meshes/
+✔️ Edit geometry.yaml
+Fill in your actual rover dimensions and arm link lengths.
+
+
+
+#### 6. Build the Workspace
+On both PC and SBC:
+
+cd ~/rover_ws
+catkin_make
+source devel/setup.bash
+
+
+
+#### 7. Hardware Wiring Summary (Arduinos)
+
+Arduino Mega #1 — Rover Base
+Handles:
+
+6 DC wheel motors via DRI0002 motor drivers
+6 wheel encoders (A/B)
+4 steering servos via PCA9685
+Publishes /rover/wheel_states (position + velocity)
+Subscribes /rover/wheel_cmd (RPM)
+Subscribes /rover/steer_cmd (deg)
+
+Arduino Mega #2 — 5-Axis Arm
+Handles:
+
+5 × A4988 stepper drivers
+5 homing/calibration switches
+Sends /arm/joint_states
+Accepts /arm/joint_cmd_raw (deg + speed scale)
+
+
+
+#### 8. Raspberry Pi 4 — Launch Core Rover Hardware Node
+Start the hardware interface node:
+
+roslaunch rover_hardware real_control.launch
+
+This:
+
+Loads URDF on Pi
+Loads ros_control controllers
+Spawns joint controllers
+Connects to Arduinos via rosserial or serial → custom messages
+Provides hardware interfaces for wheels, steering, and arm
+
+
+
+#### 9. PC — Launch MoveIt + Planning
+
+9.1 For real robot:
+
+roslaunch toolbox_rover_moveit real_moveit.launch
+
+This:
+Loads robot_description and SRDF
+Starts MoveGroup
+Connects to ros_control on the Pi (via ROS network)
+Starts traj_splitter (A4988 controller)
+Starts RViz with MoveIt plugin
+
+9.2 For simulation:
+
+roslaunch toolbox_rover_moveit demo.launch
 
 
 
 
+#### 10. A4988 Trajectory Execution Pipeline
+    
+Included:
+MoveIt → FollowJointTrajectoryAction → traj_splitter → /arm/joint_cmd_raw → Arduino
+The splitter handles:
+Velocity limiting
+Time synchronization
+Converting positions (rad) → degrees
+Applying speed scale
+Ensuring multi-axis sync
 
 
+
+#### 11. Arm Homing
+Before any MoveIt planning, on real hardware:
+
+rosservice call /arm/homing
+The homing node (Arduino + optional ROS node) ensures:
+Switch detection
+Joint offset calibration
+Setting zero angle positions
+Enforcing safety limits before allowing MoveIt to command
+
+#### 12. Gazebo Simulation
+If you create rover_sim:
+
+roslaunch rover_sim sim.launch
+
+The URDF already contains:
+
+Steering joints
+Wheel joints
+Arm joints
+ros_control transmissions
+Gazebo controller spawners
+Simulation and real hardware use the same joint names and topics.
+
+#### 13. MoveIt Workspace Usage
+To visualize:
+
+roslaunch toolbox_rover_moveit rviz.launch
+
+To plan a motion:
+
+Select the “arm” group in RViz
+
+Drag the interactive markers
+Plan & Execute
+In simulation → fake_execution
+On real → trajectory splitter executes on hardware
+MoveIt knows nothing about A4988 — it only talks to the trajectory splitter.
+
+
+#### 14. Networking (PC ↔ Pi)
+On PC:
+
+export ROS_MASTER_URI=http://<pc_ip>:11311
+export ROS_IP=<pc_ip>
+On Pi:
+
+export ROS_MASTER_URI=http://<pc_ip>:11311
+export ROS_IP=<pi_ip>
+Add to both .bashrc.
+
+If using Pi as master, reverse the IPs.
+
+#### 15. Testing Everything
+Wheels:
+rostopic pub /rover/wheel_cmd rover_msgs/WheelCmd "{wheel_rpm: [50,50,50,50,50,50]}"
+
+Steering:
+rostopic pub /rover/steer_cmd rover_msgs/SteerCmd "{steer_deg: [10,10, -10, -10]}"
+
+Arm:
+rosrun rqt_joint_trajectory_controller rqt_joint_trajectory_controller
+
+
+#### 16. What’s Fully Working After Setup
+✔️ Rover simulation
+✔️ Rover real control (wheels + steering)
+✔️ Encoders → wheel velocity feedback
+✔️ 5-stepper arm control through A4988
+✔️ Real-time MoveIt trajectory execution
+✔️ Unified ros_control interface
+✔️ Switchable SIM <→ REAL with no topic changes
+✔️ Complete MoveIt planning pipeline
+✔️ Full URDF + SRDF + OMPL
+✔️ RViz integration
 
 
 
