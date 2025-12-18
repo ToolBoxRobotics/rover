@@ -258,7 +258,23 @@ Python dependencies for custom nodes (example):
     
     (Full python node code included in canvas.)
 
+  TF tree from URDF:
 
+        odom (from odom_node)
+
+        base_link
+
+        fl_link → fl_wheel
+
+        ml_link → ml_wheel
+
+        rl_link → rl_wheel
+
+        fr_link → fr_wheel
+
+        mr_link → mr_wheel
+
+        rr_link → rr_wheel
 
 
 #### 8.2 ROS control config - rover_control/config/controllers.yaml
@@ -670,6 +686,9 @@ rover_bringup/launch/master_pc.launch:
             Set up communication between the master PC and the SBC (Single Board Computer) using ROS topics and services. The master PC can control the rover remotely through ROS messages.
             
             This approach combines hardware integration with ROS-based control and simulation, providing both manual and autonomous operation for the rover.
+
+
+
 
 
 
