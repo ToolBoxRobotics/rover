@@ -479,6 +479,197 @@ Add autonomous behaviors using move_base, teb_local_planner or nav2 porting.
 
 
 
+10. Bringup launches
+Rover side (CM4)
+rover_bringup/launch/rover_cm4.launch:
+
+<launch>
+  <!-- Set ROS_MASTER_URI in env when starting -->
+
+  <include file="$(find rover_bringup)/launch/description.launch"/>
+
+  <!-- rosserial for drive & arm -->
+  <node pkg="rosserial_python" type="serial_node.py" name="drive_serial">
+    <param name="port" value="/dev/ttyACM0"/>
+    <param name="baud" value="115200"/>
+  </node>
+
+  <node pkg="rosserial_python" type="serial_node.py" name="arm_serial">
+    <param name="port" value="/dev/ttyACM1"/>
+    <param name="baud" value="115200"/>
+  </node>
+
+  <!-- Kinect, GPS, odom, ackermann node, etc. -->
+  <include file="$(find rover_vision)/launch/kinect.launch"/>
+  <include file="$(find rover_navigation)/launch/ekf.launch"/>
+  <include file="$(find rover_navigation)/launch/move_base.launch"/>
+
+  <node pkg="rover_control" type="ackermann_drive_node.py" name="ackermann_drive" output="screen"/>
+  <!-- Odometry node here if running on CM4 -->
+</launch>
+PC/master side
+rover_bringup/launch/master_pc.launch:
+
+<launch>
+  <!-- Assume roscore running here -->
+
+  <include file="$(find rover_bringup)/launch/description.launch"/>
+  <include file="$(find rover_teleop)/launch/joystick_teleop.launch"/>
+  <include file="$(find rover_bringup)/launch/rviz.launch"/>
+
+  <!-- Gazebo sim (optional) -->
+  <!-- <include file="$(find rover_gazebo)/launch/rover_world.launch"/> -->
+
+  <!-- MoveIt for arm -->
+  <include file="$(find rover_arm_moveit)/launch/demo.launch"/>
+</launch>
+
+
+
+            1. Hardware Overview:
+            Rover Structure: Six-wheeled rover with 12V, 83 RPM motors for each wheel and encoders.
+            
+            Steering: Four corner-mounted 40kg servos for Ackermann steering.
+            
+            Motor Controllers: DRI0002 motor drivers for controlling the wheels.
+            
+            Sensors:
+            
+            IMU: MPU6050 for orientation and acceleration data.
+            
+            Voltage & Current Sensor: INA219 to monitor power.
+            
+            GPS: YB-MVV21-V1 GPS module for localization.
+            
+            Camera: Kinect RGBD for computer vision and autonomous navigation.
+            
+            Robotic Arm: 5-axis with NEMA17 stepper motors and A4988 controllers, controlled by a second Arduino Mega.
+            
+            2. System Components & Wiring:
+            Arduino Mega: Two boards will handle the motor and sensor data.
+            
+            One for controlling the motors, servos, sensors (INA219, MPU6050, encoders), and the motor drivers.
+            
+            Another for the robotic arm and additional sensors.
+            
+            Motor Controllers: The DRI0002 motor controllers will interface with the Arduino via PWM or digital control pins for speed and direction control.
+            
+            PCA9685: The servo control will be handled by the PCA9685, controlled via I2C to set the steering angles.
+            
+            TCA9548A Multiplexer: Connect multiple I2C devices (e.g., INA219, MPU6050) using the multiplexer to avoid address conflicts.
+            
+            Sensors: INA219 for voltage/current monitoring, MPU6050 for IMU data, and GPS for localization.
+            
+            3. Software Architecture:
+            The software environment will be structured with ROS Noetic as the backbone, integrating control systems, sensors, and simulation.
+            
+            ROS Packages and Nodes:
+            Motor Control: A node will handle the control of the motors via the DRI0002 motor controllers, utilizing the PWM signals or serial communication with the Arduino Mega.
+            
+            Use rosserial to communicate with the Arduino Mega to control motors and read encoders.
+            
+            Implement PID controllers in ROS to control the speed and position of each wheel.
+            
+            Servo Control: Use the pca9685 ROS package to control the 40kg servos for Ackermann steering. The steering angle will be determined based on the rover's velocity and the control commands sent from the master PC or joystick.
+            
+            Encoder Feedback: Read encoder signals from each wheel using ROS topics. This can be done by configuring an interrupt-driven Arduino node or using a ROS package that interfaces with encoders.
+            
+            Encoder data will be used for odometry calculations.
+            
+            IMU Integration: Use the mpu6050 ROS package to interface with the MPU6050 for obtaining orientation, acceleration, and gyroscope data.
+            
+            This can also be fused with odometry data to improve the rover's localization.
+            
+            GPS Integration: Integrate the GPS module via a serial connection, using the nmea_navsat_driver package to handle GPS data.
+            
+            Robotic Arm Control: Implement control for the 5-axis robotic arm using stepper motors with the A4988 drivers.
+            
+            Use the ros_control framework to handle the arm’s motion and calibration.
+            
+            Add a separate node for programming and controlling the arm via the Arduino Mega.
+            
+            Simulation: Integrate the rover in Gazebo for simulation.
+            
+            Use the gazebo_ros_pkgs to simulate the rover and the robot arm.
+            
+            Create a model in URDF for the rover and robotic arm, and use gazebo_ros_control to simulate the arm’s motions.
+            
+            Implement a TF tree to publish the transformations between the rover base and robotic arm.
+            
+            Teleoperation: Use a joystick for manual control through ROS. The teleop_twist_joy package can be configured for controlling the rover’s movement.
+            
+            This will send Twist messages (linear and angular velocities) to the rover for forward/backward and turning movements.
+            
+            Nodes Breakdown:
+            Master Node (PC):
+            
+            Control system that sends commands (velocity, steering angle, arm control).
+            
+            Visualization in RViz.
+            
+            Autonomous navigation and SLAM (Simultaneous Localization and Mapping) using sensor data.
+            
+            Use OpenCV for computer vision tasks with the Kinect camera.
+            
+            Rover Node (SBC or Arduino Mega):
+            
+            Motor control (DRI0002 + encoders).
+            
+            Servo control (PCA9685 for Ackermann steering).
+            
+            Sensor data collection (INA219, MPU6050).
+            
+            Odometry calculation and publishing.
+            
+            GPS data processing.
+            
+            4. PID Control for Motors:
+            Implement PID control in ROS for each wheel’s motor to maintain desired speed and position. Use encoder feedback for closed-loop control. Tuning of PID parameters will be necessary to get stable control over the rover.
+            
+            5. Odometry and Navigation:
+            Use wheel encoder data for odometry to track the rover's position and orientation.
+            
+            Combine the odometry with IMU data for better localization, using sensor fusion algorithms like robot_localization to integrate data from encoders, IMU, and GPS.
+            
+            Implement autonomous navigation using the move_base package for path planning and obstacle avoidance, utilizing the Kinect camera for environment perception.
+            
+            6. Autonomous Navigation:
+            Create an autonomous navigation system that includes:
+            
+            Obstacle avoidance: Use data from the Kinect camera to detect obstacles and plan paths around them.
+            
+            Localization: Fuse GPS and odometry data for accurate localization in the environment.
+            
+            Path planning: Implement a local planner using the nav_core and dwa_local_planner to navigate through environments.
+            
+            7. Programming the Robotic Arm:
+            Create a separate set of nodes to control the robotic arm, providing functions to move each joint of the arm.
+            
+            Use inverse kinematics (IK) for planning the arm’s motions and controlling it in 3D space.
+            
+            8. Gazebo Simulation:
+            Create a detailed model for the rover and its arm in URDF format.
+            
+            Use gazebo_ros packages to integrate the robot model into Gazebo for testing.
+            
+            Simulate sensor data (e.g., IMU, encoders, camera, GPS) and test algorithms in the virtual environment.
+            
+            9. Visualization in RViz:
+            Set up RViz for visualizing the robot's state, including:
+            
+            Robot Model: Visualize the rover and robotic arm.
+            
+            Odometry: Display the rover's trajectory in RViz.
+            
+            Sensor Data: Show IMU, GPS, camera feed, and laser scans.
+            
+            10. Joystick Teleoperation:
+            Set up the teleop_twist_joy package for controlling the rover manually via a joystick, sending velocity commands for both driving and steering.
+            
+            11. Communication Between SBC and PC:
+            Set up communication between the master PC and the SBC (Single Board Computer) using ROS topics and services. The master PC can control the rover remotely through ROS messages.
+            
+            This approach combines hardware integration with ROS-based control and simulation, providing both manual and autonomous operation for the rover.
 
 
 
