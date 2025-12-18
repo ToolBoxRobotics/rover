@@ -1,0 +1,5 @@
+<launch>
+  <include file="$(find rover_description)/launch/description.launch"/>
+  <include file="$(find rover_bringup)/launch/base.launch"/>
+  <include file="$(find rover_bringup)/launch/arm.launch"/>
+</launch>
