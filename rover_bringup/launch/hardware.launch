@@ -150,4 +150,6 @@
     <include file="$(find rover_moveit)/launch/demo.launch" />
   </group>
 
+  <include file="$(find rover_bringup)/launch/web_interface.launch"/>
+
 </launch>
